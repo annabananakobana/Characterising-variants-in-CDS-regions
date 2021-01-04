@@ -6,9 +6,6 @@
 #SBATCH -c 16
 #SBATCH -n 1
 #SBATCH --mem=48G
-#SBATCH --partition=large
-#SBATCH --mail-user=anna.clark@postgrad.otago.ac.nz
-#SBATCH --mail-type=ALL
 #SBATCH --array 1-46
 #SBATCH --chdir=/nesi/nobackup/uoo02820/Rattus_rattus_pop_data/30_samples/trimmed_data/
 
