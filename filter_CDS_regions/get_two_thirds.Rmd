@@ -1,0 +1,121 @@
+---
+title: "Generating BED file with the first 2/3 of coding region"
+author: "Ludovic Dutoit and Anna C Clark"
+date: "23/07/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(tidyverse)
+```
+
+Read in the data (BED format) as a table for the female and male candidate genes
+```{r}
+female_CDS <- as.data.frame(read.table("merged_CDS_loci_female_edited.bed",
+                                       header = FALSE, 
+                                       sep="\t",
+                                       stringsAsFactors=FALSE, 
+                                       quote=""))
+
+male_CDS <- as.data.frame(read.table("merged_CDS_loci_male_edited.bed",
+                                       header = FALSE, 
+                                       sep="\t",
+                                       stringsAsFactors=FALSE, 
+                                       quote=""))
+```
+
+Create a new empty dataset where the "cleaned" cds regions will be outputted to after we have gone through all entries on a gene-by-gene basis. One for each list.
+```{r}
+clean_dataset_female<-c()
+clean_dataset_male<-c()
+```
+
+Group cds based on gene using unique (goes through and separates column 4 - name by into unique groups). Get the length (cds_lengths), sum these (total_cds_one_gene) and then find two thirds. To set up strand, we ID the strand from the first line for each gene b/c the strand is the same for all entries for each gene. We also find the number of cds regions there are for each gene(n_cds). Then we create a vector for cumulative length. 
+(this is wrong - The tricky part is the strand-specific sums. If the strand is "+" then sum lengths from the first listed cds to that of the current line. If the strand is "-" then sum lengths from the last listed cds to that of the current line. These calcs are saved as cumulative lengths.)
+Then finally, we filter for the cds entries that have a cumulative length value less than the value of 2/3 of the coding region for that gene(two_thirds). These filtered cds are entered into our cleaned dataset. 
+
+Female candidate targets (15 unique genes). As seen below, there are 15 unique genes, which means all genes are represented either by large cds regions, or have been rescued with the distance filter. 
+```{r}
+for (gene in unique(female_CDS$V4)){
+print(gene)
+one_gene <- female_CDS[ which(female_CDS$V4==gene), ]
+one_gene <- mutate(one_gene, cds_length= V3-V2)
+total_cds_one_gene <- sum(one_gene$cds_length)
+two_thirds = total_cds_one_gene*2/3
+one_gene <- mutate(one_gene,two_thirds=two_thirds)
+strand = one_gene$V6[1]
+n_cds = dim(one_gene)[1]
+1
+cumulative_length<-rep(NA,n_cds)
+if(strand=="+"){
+for (line in 1:n_cds){
+cumulative_length[line]=sum(one_gene$cds_length[1:line])
+}
+}
+if(strand=="-"){
+for (line in 1:n_cds){
+cumulative_length[line]=sum(one_gene$cds_length[line:n_cds])
+}
+}
+one_gene<-mutate(one_gene,cumulative_length=cumulative_length)
+clean_one_gene <-filter(one_gene, cumulative_length<=two_thirds)
+clean_dataset_female <-rbind(clean_dataset_female,clean_one_gene)
+}
+```
+
+Male candidate targets. As seen below, there are 16 unique genes, which means all genes are represented either by large cds regions, or have been rescued with the distance filter. 
+```{r}
+for (gene in unique(male_CDS$V4)){
+print(gene)
+one_gene <- male_CDS[ which(male_CDS$V4==gene), ]
+one_gene <- mutate(one_gene, cds_length= V3-V2)
+total_cds_one_gene <- sum(one_gene$cds_length)
+two_thirds = total_cds_one_gene*2/3
+one_gene <- mutate(one_gene,two_thirds=two_thirds)
+strand = one_gene$V6[1]
+n_cds = dim(one_gene)[1]
+cumulative_length<-rep(NA,n_cds)
+if(strand=="+"){
+for (line in 1:n_cds){
+cumulative_length[line]=sum(one_gene$cds_length[1:line])
+}
+}
+if(strand=="-"){
+2
+for (line in 1:n_cds){
+cumulative_length[line]=sum(one_gene$cds_length[line:n_cds])
+}
+}
+one_gene<-mutate(one_gene,cumulative_length=cumulative_length)
+clean_one_gene <-filter(one_gene, cumulative_length<=two_thirds)
+clean_dataset_male <-rbind(clean_dataset_male,clean_one_gene)
+}
+```
+
+Remove our working columns(don't remove them before now so you can manually check dataset and calcs)
+```{r}
+final_clean_dataset_female <- clean_dataset_female[ -c(11:13) ]
+
+final_clean_dataset_male <- clean_dataset_male[ -c(11:13) ]
+```
+
+Now review all the female targets that have been retained after processing
+```{r}
+for (gene in unique(final_clean_dataset_female$V4)){
+  print(gene)
+  }
+```
+
+Now review all the male targets that have been retained after processing
+```{r}
+for (gene in unique(final_clean_dataset_male$V4)){
+  print(gene)
+  }
+```
+Write these out as bed files to use for filtering using vcftool
+```{r}
+write.table(final_clean_dataset_female,"CDS_loci_f_twothirds.bed",sep="\t",quote=F,row.names = F,col.names = F)
+write.table(final_clean_dataset_male,"CDS_loci_m_twothirds.bed",sep="\t",quote=F,row.names = F,col.names = F)
+```
